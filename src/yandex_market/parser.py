@@ -7,6 +7,7 @@ from urllib.parse import urlparse, parse_qs
 import aiohttp
 import glom
 
+from src.yandex_market.config_category import CATEGORY_ID, CATEGORY_LINK
 from src.yandex_market.config_product import BREAD_CRUMBS, MAX_CONCURRENT_REQUESTS
 
 
@@ -141,13 +142,13 @@ async def get_category(base_url, headers, params):
             prices, titles, resales, resales_specs = extract_prices_titles_is_resales(response_json)
 
             for product in products.values():
-                if product['categoryIds'][0] != 91491:
+                if product['categoryIds'][0] != CATEGORY_ID:
                     continue
 
                 link = get_product_link(product, products_links, product_links_offer, resales, resales_specs)
 
                 result_category.append([
-                    'https://market.yandex.ru/catalog--smartfony/61808/list',
+                    CATEGORY_LINK,
                     titles[product['id']],
                     prices[product['id']],
                     link
@@ -160,23 +161,6 @@ async def get_category(base_url, headers, params):
 
 
 #############################################################PRODUCT####################################################
-
-def get_brand_name(title):
-    """
-    Извлекает имя бренда из названия продукта.
-
-    :param title: Название продукта
-    :return: Имя бренда
-    """
-    brand_name = ''
-
-    for item in title.split():
-        if item[0] in ascii_letters:
-            brand_name = item
-            break
-
-    return brand_name
-
 
 def get_data(product_data):
     """
@@ -223,22 +207,25 @@ def get_params_for_request(url):
     return params
 
 
-def get_rating_and_reviews_count(response_json):
+def get_rating_reviews_count_brand_name(response_json):
     """
-    Получает рейтинг и количество отзывов о продукте.
+    Получает рейтинг и количество отзывов и имя бренда.
 
     :param response_json: JSON-ответ
     :return: Рейтинг и количество отзывов о продукте
     """
     rating = 0
     reviews_count = 0
+    brand_name = '>Мобильные телефоны'
 
     for item in response_json['shared']['analytics'].values():
         if 'score' in item and 'reviewsCount' in item:
             reviews_count = item['reviewsCount']
             rating = round(item['score'], 1)
-            break
-    return rating, reviews_count
+        elif 'brandName' in item and 'skuType' in item:
+            brand_name += f">{item.get('brandName')}"
+
+    return rating, reviews_count, brand_name
 
 
 async def get_products(products, base_url, headers, json_data):
@@ -289,15 +276,14 @@ async def fetch_and_process_product(session, base_url, product, params, headers,
 
     title, stock, price = get_data(product_data)
     link = product[3]
-    brand_name = get_brand_name(title)
-    rating, reviews_count = get_rating_and_reviews_count(response_json)
+    rating, reviews_count, brand_name = get_rating_reviews_count_brand_name(response_json)
 
     result_products.append([
         title,
         price,
         link,
         stock,
-        f'{BREAD_CRUMBS}>{brand_name}',
+        f'{BREAD_CRUMBS}{brand_name}',
         rating,
         reviews_count,
     ])

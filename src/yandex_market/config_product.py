@@ -16,7 +16,7 @@ json_data_product = {
 }
 
 BASE_URL_PRODUCT = 'https://mapi.vs.market.yandex.net/api/screen/product'
-BREAD_CRUMBS = 'Электроника>Смартфоны и гаджеты>Смартфоны'
+BREAD_CRUMBS = 'Электроника>Смартфоны и гаджеты>'
 
 product_csv_path = '../../data/yandex_market/product.csv'
 

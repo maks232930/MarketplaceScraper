@@ -9,13 +9,16 @@ headers_category = {
     "x-jws": "eyJhbGciOiJIUzI1NiIsImtpZCI6Im5hcndoYWwiLCJ0eXAiOiJKV1QifQ.eyJhbmRyb2lkX2NsYWltcyI6eyJhcGtDZXJ0aWZpY2F0ZURpZ2VzdFNoYTI1NiI6WyJyS1FGM3RpeVhMTG94dHBwUWwwclF3ZlFoOEVuYjhCcTFaUW5NY3pGSGJvPSJdLCJhcGtQYWNrYWdlTmFtZSI6InJ1LmJlcnUuYW5kcm9pZCIsImJhc2ljSW50ZWdyaXR5IjpmYWxzZSwiY3RzUHJvZmlsZU1hdGNoIjpmYWxzZSwiZXZhbHVhdGlvblR5cGUiOiJCQVNJQyIsInRpbWVzdGFtcE1zIjoxNjk1NTkyMjQ5NTQxfSwiZGV2aWNlX2ludGVncml0eSI6ZmFsc2UsImV4cGlyZXNfYXRfbXMiOjE2OTU1OTU4NTIyMTIsImlwIjoiMmEwMjo2Yjg6YzI5OmZhNGM6MDo1YzE4OmY2NDQ6MCIsInRpbWVzdGFtcF9tcyI6MTY5NTU5MjI1MjIxMiwidXVpZCI6Ijc2M2Y3MjY5NTJhMDQ0ZjJiM2U1OGJkY2QzNmE3YmE2In0.P9uHpcn8K-D7Qslsrkc71icwLwfPbS0ugo-vZChik9o",
 }
 
+CATEGORY_ID = 91491
+CATEGORY_LINK = 'https://market.yandex.ru/catalog--smartfony/61808/list'
+
 json_data_category = {
     "params": [
         {
             "allowCollapsing": 1,
             "billingZone": "searchWithoutSort",
             "count": 35,
-            "hid": 91491,
+            "hid": CATEGORY_ID,
             "page": 1,
         }
     ]
