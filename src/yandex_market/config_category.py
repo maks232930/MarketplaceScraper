@@ -21,4 +21,4 @@ json_data_category = {
     ]
 }
 
-category_csv_path = '../../data/yandex_market/category11.csv'
+category_csv_path = '../../data/yandex_market/category.csv'

@@ -1,21 +1,28 @@
+import asyncio
 import csv
 import re
 from string import ascii_letters
 from urllib.parse import urlparse, parse_qs
 
-import requests
+import aiohttp
 
-from src.yandex_market.config_product import BREAD_CRUMBS
+from src.yandex_market.config_product import BREAD_CRUMBS, MAX_CONCURRENT_REQUESTS
 
 
-def save_data_to_csv(filename, data):
+async def fetch_data(session, url, **kwargs):
+    async with session.post(url, **kwargs) as response:
+        response_json = await response.json()
+        return response_json
+
+
+async def save_data_to_csv(filename, data):
     with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
         for row in data:
             writer.writerow(row)
 
 
-def extract_product_links(response_json):
+async def extract_product_links(response_json):
     product_links = {}
     product_show_place = response_json['collections']['productShowPlace'].values()
 
@@ -38,7 +45,7 @@ def extract_product_links(response_json):
     return product_links, product_links_offer
 
 
-def extract_prices_titles_is_resales(response_json):
+async def extract_prices_titles_is_resales(response_json):
     prices = {}
 
     titles = {}
@@ -67,7 +74,7 @@ def extract_prices_titles_is_resales(response_json):
     return prices, titles, resales, resales_specs
 
 
-def get_product_link(product, products_links, product_links_offer, resales, resales_specs):
+async def get_product_link(product, products_links, product_links_offer, resales, resales_specs):
     product_id = product['id']
     link = product_links_offer.get(product['id'], products_links[product['id']]).replace(',', '')
 
@@ -80,39 +87,38 @@ def get_product_link(product, products_links, product_links_offer, resales, resa
     return link
 
 
-def get_category(base_url, headers, params):
+async def get_category(base_url, headers, params):
     result_category = []
+    async with aiohttp.ClientSession() as session:
+        response_json = await fetch_data(session, base_url, headers=headers, json=params)
 
-    response = requests.post(base_url, headers=headers, json=params)
+        for _ in range(1, 15):
+            products = response_json['collections']['product']
+            products_links, product_links_offer = await extract_product_links(response_json)
+            prices, titles, resales, resales_specs = await extract_prices_titles_is_resales(response_json)
 
-    for _ in range(1, 15):
-        response_json = response.json()
-        products = response_json['collections']['product']
-        products_links, product_links_offer = extract_product_links(response_json)
-        prices, titles, resales, resales_specs = extract_prices_titles_is_resales(response_json)
+            for product in products.values():
+                if product['categoryIds'][0] != 91491:
+                    continue
 
-        for product in products.values():
-            if product['categoryIds'][0] != 91491:
-                continue
+                link = await get_product_link(product, products_links, product_links_offer, resales, resales_specs)
 
-            link = get_product_link(product, products_links, product_links_offer, resales, resales_specs)
+                result_category.append([
+                    'https://market.yandex.ru/catalog--smartfony/61808/list',
+                    titles[product['id']],
+                    prices[product['id']],
+                    link
+                ])
 
-            result_category.append([
-                'https://market.yandex.ru/catalog--smartfony/61808/list',
-                titles[product['id']],
-                prices[product['id']],
-                link
-            ])
-
-        params['params'][0]['page'] += 1
-        response = requests.post(base_url, headers=headers, json=params)
+            params['params'][0]['page'] += 1
+            response_json = await fetch_data(session, base_url, headers=headers, json=params)
 
     return result_category
 
 
 #############################################################PRODUCT####################################################
 
-def get_brand_name(title):
+async def get_brand_name(title):
     brand_name = ''
 
     for item in title.split():
@@ -123,7 +129,7 @@ def get_brand_name(title):
     return brand_name
 
 
-def get_stock(response_json):
+async def get_stock(response_json):
     try:
         stock = \
             response_json['scaffold']['bottomView']['divData']['states'][0]['div']['bottomItemsRef'][0]['custom_props'][
@@ -133,7 +139,7 @@ def get_stock(response_json):
         return 0
 
 
-def get_price(response_json):
+async def get_price(response_json):
     try:
         price = response_json['scaffold']['wishButtonParams']['price'].get('value', '')
         return price
@@ -141,7 +147,7 @@ def get_price(response_json):
         return ''
 
 
-def get_params_for_request(url):
+async def get_params_for_request(url):
     parsed_url = urlparse(url)
 
     query_parameters = parse_qs(parsed_url.query)
@@ -159,7 +165,7 @@ def get_params_for_request(url):
     return params
 
 
-def get_rating_and_reviews_count(response_json):
+async def get_rating_and_reviews_count(response_json):
     rating = 0
     reviews_count = 0
 
@@ -171,36 +177,50 @@ def get_rating_and_reviews_count(response_json):
     return rating, reviews_count
 
 
-def get_products(products, base_url, headers, json_data):
+async def get_products(products, base_url, headers, json_data):
     result_products = []
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
-    for product in products:
-        params = get_params_for_request(product[3])
+    async with aiohttp.ClientSession() as session:
+        tasks = []
 
-        response = requests.post(
-            base_url,
-            params=params,
-            headers=headers,
-            json=json_data,
-        )
+        for product in products:
+            params = await get_params_for_request(product[3])
+            tasks.append(
+                fetch_and_process_product(session, base_url, product, params, headers, json_data, result_products,
+                                          semaphore)
+            )
 
-        response_json = response.json()
-
-        stock = get_stock(response_json)
-        title = response_json['scaffold']['title']
-        price = get_price(response_json)
-        link = product[3]
-        brand_name = get_brand_name(title)
-        rating, reviews_count = get_rating_and_reviews_count(response_json)
-
-        result_products.append([
-            title,
-            price,
-            link,
-            stock,
-            f'{BREAD_CRUMBS}>{brand_name}',
-            rating,
-            reviews_count,
-        ])
+        await asyncio.gather(*tasks)
 
     return result_products
+
+
+async def get_title(response_json):
+    try:
+        title = response_json['scaffold'].get('title')
+        return title
+    except KeyError:
+        return ''
+
+
+async def fetch_and_process_product(session, base_url, product, params, headers, json_data, result_products, semaphore):
+    async with semaphore:
+        response_json = await fetch_data(session, base_url, params=params, headers=headers, json=json_data)
+
+    stock = await get_stock(response_json)
+    title = await get_title(response_json)
+    price = await get_price(response_json)
+    link = product[3]
+    brand_name = await get_brand_name(title)
+    rating, reviews_count = await get_rating_and_reviews_count(response_json)
+
+    result_products.append([
+        title,
+        price,
+        link,
+        stock,
+        f'{BREAD_CRUMBS}>{brand_name}',
+        rating,
+        reviews_count,
+    ])
