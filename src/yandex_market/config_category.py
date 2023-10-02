@@ -12,35 +12,11 @@ headers_category = {
 json_data_category = {
     "params": [
         {
-            # "add-vendor-color": 1,
-            # "adult": 1,
-            # "allow-ungrouping": 1,
             "allowCollapsing": 1,
             "billingZone": "searchWithoutSort",
-            # "columns-in-grid": 5,
-            # "contentPreview": False,
             "count": 35,
-            # "cpa": "real",
-            # "cpm": 1,
-            # "ds": "",
-            # "fapiParams": {
-            #     "cartSnapshot": []
-            # },
-            # "filters": {
-            #     "filter-univermag": "0"
-            # },
-            # "glfilter": [
-            #     "[21194330:34066443]"
-            # ],
             "hid": 91491,
-            # "hide-filter": "cpa,onstock,fesh",
-            # "onstock": 1,
             "page": 1,
-            # "rawParams": {
-            #     "glfilter": "[21194330:34066443]",
-            #     "hid": "91491"
-            # },
-
         }
     ]
 }

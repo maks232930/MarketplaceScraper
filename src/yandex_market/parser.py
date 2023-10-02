@@ -38,8 +38,14 @@ def extract_product_links(response_json):
     return product_links, product_links_offer
 
 
-def extract_prices(response_json):
+def extract_prices_titles_is_resales(response_json):
     prices = {}
+
+    titles = {}
+
+    resales = {}
+    resales_specs = {}
+
     offer_data = response_json['collections']['offer'].values()
 
     for item in offer_data:
@@ -48,17 +54,9 @@ def extract_prices(response_json):
             price = item['price']['value']
             prices[product_id] = price
 
-    return prices
+            title = item['titlesWithoutVendor']['raw']
+            titles[product_id] = title
 
-
-def extract_is_resales(response_json):
-    resales = {}
-    resales_specs = {}
-    offer_data = response_json['collections']['offer'].values()
-
-    for item in offer_data:
-        product_id = item.get('productId')
-        if product_id:
             resale = item['isResale']
             resales[product_id] = resale
 
@@ -66,7 +64,7 @@ def extract_is_resales(response_json):
             if resale_specs:
                 resales_specs[product_id] = resale_specs['condition']['value']
 
-    return resales, resales_specs
+    return prices, titles, resales, resales_specs
 
 
 def get_product_link(product, products_links, product_links_offer, resales, resales_specs):
@@ -91,8 +89,7 @@ def get_category(base_url, headers, params):
         response_json = response.json()
         products = response_json['collections']['product']
         products_links, product_links_offer = extract_product_links(response_json)
-        prices = extract_prices(response_json)
-        resales, resales_specs = extract_is_resales(response_json)
+        prices, titles, resales, resales_specs = extract_prices_titles_is_resales(response_json)
 
         for product in products.values():
             if product['categoryIds'][0] != 91491:
@@ -102,7 +99,7 @@ def get_category(base_url, headers, params):
 
             result_category.append([
                 'https://market.yandex.ru/catalog--smartfony/61808/list',
-                product['titles']['raw'],
+                titles[product['id']],
                 prices[product['id']],
                 link
             ])
@@ -112,6 +109,8 @@ def get_category(base_url, headers, params):
 
     return result_category
 
+
+#############################################################PRODUCT####################################################
 
 def get_brand_name(title):
     brand_name = ''
