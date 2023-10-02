@@ -5,6 +5,7 @@ from string import ascii_letters
 from urllib.parse import urlparse, parse_qs
 
 import aiohttp
+import glom
 
 from src.yandex_market.config_product import BREAD_CRUMBS, MAX_CONCURRENT_REQUESTS
 
@@ -36,7 +37,7 @@ async def save_data_to_csv(filename, data):
             writer.writerow(row)
 
 
-async def extract_product_links(response_json):
+def extract_product_links(response_json):
     """
     Извлекает ссылки на продукты из JSON-ответа.
 
@@ -65,7 +66,7 @@ async def extract_product_links(response_json):
     return product_links, product_links_offer
 
 
-async def extract_prices_titles_is_resales(response_json):
+def extract_prices_titles_is_resales(response_json):
     """
     Извлекает цены, названия, флаги перепродажи и спецификации перепродажи из JSON-ответа.
 
@@ -98,7 +99,7 @@ async def extract_prices_titles_is_resales(response_json):
     return prices, titles, resales, resales_specs
 
 
-async def get_product_link(product, products_links, product_links_offer, resales, resales_specs):
+def get_product_link(product, products_links, product_links_offer, resales, resales_specs):
     """
     Получает ссылку на продукт с параметрами перепродажи (если есть).
 
@@ -136,14 +137,14 @@ async def get_category(base_url, headers, params):
 
         for _ in range(1, 15):
             products = response_json['collections']['product']
-            products_links, product_links_offer = await extract_product_links(response_json)
-            prices, titles, resales, resales_specs = await extract_prices_titles_is_resales(response_json)
+            products_links, product_links_offer = extract_product_links(response_json)
+            prices, titles, resales, resales_specs = extract_prices_titles_is_resales(response_json)
 
             for product in products.values():
                 if product['categoryIds'][0] != 91491:
                     continue
 
-                link = await get_product_link(product, products_links, product_links_offer, resales, resales_specs)
+                link = get_product_link(product, products_links, product_links_offer, resales, resales_specs)
 
                 result_category.append([
                     'https://market.yandex.ru/catalog--smartfony/61808/list',
@@ -160,7 +161,7 @@ async def get_category(base_url, headers, params):
 
 #############################################################PRODUCT####################################################
 
-async def get_brand_name(title):
+def get_brand_name(title):
     """
     Извлекает имя бренда из названия продукта.
 
@@ -177,37 +178,28 @@ async def get_brand_name(title):
     return brand_name
 
 
-async def get_stock(response_json):
+def get_data(product_data):
     """
-    Получает данные о доступном количестве товара на складе.
+    Извлекает данные из словаря `product_data` с использованием библиотеки glom.
 
-    :param response_json: JSON-ответ
-    :return: Доступное количество товара на складе
+    :param product_data: Словарь, содержащий данные о продукте.
+    :return: Кортеж с данными, включающими заголовок (title), запас (stock) и цену (price) продукта.
     """
-    try:
-        stock = \
-            response_json['scaffold']['bottomView']['divData']['states'][0]['div']['bottomItemsRef'][0]['custom_props'][
-                'params'].get('availableCount', 0)
-        return stock
-    except KeyError:
-        return 0
+
+    def try_get(key, default=''):
+        try:
+            return glom.glom(product_data, key)
+        except KeyError:
+            return default
+
+    title = try_get('title')
+    stock = try_get('bottomView.divData.states.0.div.bottomItemsRef.0.custom_props.params.availableCount', 0)
+    price = try_get('wishButtonParams.price.value', '')
+
+    return title, stock, price
 
 
-async def get_price(response_json):
-    """
-    Получает цену продукта.
-
-    :param response_json: JSON-ответ
-    :return: Цена продукта
-    """
-    try:
-        price = response_json['scaffold']['wishButtonParams']['price'].get('value', '')
-        return price
-    except KeyError:
-        return ''
-
-
-async def get_params_for_request(url):
+def get_params_for_request(url):
     """
     Извлекает параметры для выполнения запроса на основе URL.
 
@@ -231,7 +223,7 @@ async def get_params_for_request(url):
     return params
 
 
-async def get_rating_and_reviews_count(response_json):
+def get_rating_and_reviews_count(response_json):
     """
     Получает рейтинг и количество отзывов о продукте.
 
@@ -247,20 +239,6 @@ async def get_rating_and_reviews_count(response_json):
             rating = round(item['score'], 1)
             break
     return rating, reviews_count
-
-
-async def get_title(response_json):
-    """
-    Получает название продукта из JSON-ответа.
-
-    :param response_json: JSON-ответ
-    :return: Название продукта
-    """
-    try:
-        title = response_json['scaffold'].get('title')
-        return title
-    except KeyError:
-        return ''
 
 
 async def get_products(products, base_url, headers, json_data):
@@ -280,7 +258,7 @@ async def get_products(products, base_url, headers, json_data):
         tasks = []
 
         for product in products:
-            params = await get_params_for_request(product[3])
+            params = get_params_for_request(product[3])
             tasks.append(
                 fetch_and_process_product(session, base_url, product, params, headers, json_data, result_products,
                                           semaphore)
@@ -307,12 +285,12 @@ async def fetch_and_process_product(session, base_url, product, params, headers,
     async with semaphore:
         response_json = await fetch_data(session, base_url, params=params, headers=headers, json=json_data)
 
-    stock = await get_stock(response_json)
-    title = await get_title(response_json)
-    price = await get_price(response_json)
+    product_data = response_json.get("scaffold", {})
+
+    title, stock, price = get_data(product_data)
     link = product[3]
-    brand_name = await get_brand_name(title)
-    rating, reviews_count = await get_rating_and_reviews_count(response_json)
+    brand_name = get_brand_name(title)
+    rating, reviews_count = get_rating_and_reviews_count(response_json)
 
     result_products.append([
         title,
