@@ -1,7 +1,6 @@
 import asyncio
 import csv
 import re
-from string import ascii_letters
 from urllib.parse import urlparse, parse_qs
 
 import aiohttp
@@ -123,18 +122,19 @@ def get_product_link(product, products_links, product_links_offer, resales, resa
     return link
 
 
-async def get_category(base_url, headers, params):
+async def get_category(base_url, headers, json_params, params):
     """
     Получает данные о продуктах в категории.
 
     :param base_url: Базовый URL для API категории
     :param headers: Заголовки для HTTP-запроса
+    :param json_params: Параметры для запроса API
     :param params: Параметры для запроса API
     :return: Список данных о продуктах
     """
     result_category = []
     async with aiohttp.ClientSession() as session:
-        response_json = await fetch_data(session, base_url, headers=headers, json=params)
+        response_json = await fetch_data(session, base_url, headers=headers, json=json_params, params=params)
 
         for _ in range(1, 15):
             products = response_json['collections']['product']
@@ -154,8 +154,8 @@ async def get_category(base_url, headers, params):
                     link
                 ])
 
-            params['params'][0]['page'] += 1
-            response_json = await fetch_data(session, base_url, headers=headers, json=params)
+            json_params['params'][0]['page'] += 1
+            response_json = await fetch_data(session, base_url, headers=headers, json=json_params, params=params)
 
     return result_category
 
@@ -170,13 +170,13 @@ def get_data(product_data):
     :return: Кортеж с данными, включающими заголовок (title), запас (stock) и цену (price) продукта.
     """
 
-    def try_get(key, default=''):
+    def try_get(key, default):
         try:
             return glom.glom(product_data, key)
         except KeyError:
             return default
 
-    title = try_get('title')
+    title = try_get('title', '')
     stock = try_get('bottomView.divData.states.0.div.bottomItemsRef.0.custom_props.params.availableCount', 0)
     price = try_get('wishButtonParams.price.value', '')
 
@@ -209,10 +209,10 @@ def get_params_for_request(url):
 
 def get_rating_reviews_count_brand_name(response_json):
     """
-    Получает рейтинг и количество отзывов и имя бренда.
+    Получает рейтинг, количество отзывов и имя бренда.
 
     :param response_json: JSON-ответ
-    :return: Рейтинг и количество отзывов о продукте
+    :return: Рейтинг, количество отзывов и имя бренда.
     """
     rating = 0
     reviews_count = 0
